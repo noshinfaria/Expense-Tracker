@@ -1,6 +1,8 @@
 import datetime
+import os
 
-from flask import Flask, jsonify, request
+import jwt  # Install PyJWT if not already installed: pip install PyJWT
+from flask import Flask, current_app, jsonify, request, url_for
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 from flask_bcrypt import Bcrypt
@@ -10,9 +12,11 @@ from flask_jwt_extended import (
     get_jwt_identity,
     jwt_required,
 )
+from flask_mail import Mail, Message
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://username:password@localhost:5432/expenses_db'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expenses.db'
 app.config['JWT_SECRET_KEY'] = 'supersecretkey'
 db = SQLAlchemy(app)
@@ -53,6 +57,45 @@ def login():
         return jsonify({'access_token': access_token})
     return jsonify({'message': 'Invalid credentials'}), 401
 
+
+@app.route('/reset_password_request', methods=['POST'])
+def reset_password_request():
+    data = request.get_json()
+    user = User.query.filter_by(email=data['email']).first()
+    
+    if user:
+        token = jwt.encode({'user_id': user.id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)},
+                           current_app.config['JWT_SECRET_KEY'], algorithm='HS256')
+        
+        reset_url = url_for('reset_password', token=token, _external=True)
+        msg = Message('Password Reset Request', recipients=[data['email']])
+        msg.body = f'Please click the following link to reset your password: {reset_url}'
+        mail.send(msg)
+
+        return jsonify({'message': 'Password reset email sent'}), 200
+    return jsonify({'message': 'Email not found'}), 404
+
+
+@app.route('/reset_password/<token>', methods=['POST'])
+def reset_password(token):
+    try:
+        data = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+        user = User.query.get(data['user_id'])
+        
+        if user:
+            new_password = request.get_json()['password']
+            hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+            user.password_hash = hashed_password
+            db.session.commit()
+            return jsonify({'message': 'Password has been reset'}), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({'message': 'Token has expired'}), 403
+    except jwt.InvalidTokenError:
+        return jsonify({'message': 'Invalid token'}), 403
+
+    return jsonify({'message': 'User not found'}), 404
+
+
 @app.route('/expenses', methods=['POST'])
 @jwt_required()
 def add_expense():
@@ -78,6 +121,16 @@ def get_expenses():
 admin = Admin(app, name='Expense Tracker Admin', template_mode='bootstrap3')
 admin.add_view(ModelView(User, db.session, endpoint='user_admin'))
 admin.add_view(ModelView(Expense, db.session, endpoint='expense_admin'))
+
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'  # Example for Gmail
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'noshin@co.design'  # Your email
+app.config['MAIL_PASSWORD'] = 'zrwyengrbaqhtuth'  # Your email password
+app.config['MAIL_DEFAULT_SENDER'] = 'noshin@co.design'  # Default sender
+mail = Mail(app)
+
 
 if __name__ == '__main__':
     with app.app_context():

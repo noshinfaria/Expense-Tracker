@@ -6,8 +6,6 @@ A finance tracking application built with Flask, providing user authentication, 
 
 - [Features](#features)
 - [Technologies](#technologies)
-- [Installation](#installation)
-- [Usage](#usage)
 - [API Endpoints](#api-endpoints)
 
 ## Features

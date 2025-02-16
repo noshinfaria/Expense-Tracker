@@ -51,10 +51,182 @@ A finance tracking application built with Flask, providing user authentication, 
 - **Email:** Flask-Mail (for password reset functionality)
 - **CSV Export:** Built-in CSV module
 
-## Installation
+## API Endpoints
 
-1. Clone the repository:
+### User Management
 
-   ```bash
-   git clone https://github.com/yourusername/finance-tracker.git
-   cd finance-tracker
+- **Register User**
+  - `POST /register`
+  - Request Body: 
+    ```json
+    {
+      "username": "string",
+      "email": "string",
+      "password": "string"
+    }
+    ```
+  - Response: 
+    ```json
+    {
+      "message": "User registered successfully"
+    }
+    ```
+
+- **Login User**
+  - `POST /login`
+  - Request Body:
+    ```json
+    {
+      "email": "string",
+      "password": "string"
+    }
+    ```
+  - Response:
+    ```json
+    {
+      "access_token": "string",
+      "refresh_token": "string"
+    }
+    ```
+
+- **Refresh Access Token**
+  - `POST /refresh`
+  - Requires JWT refresh token in the header.
+  - Response:
+    ```json
+    {
+      "access_token": "string"
+    }
+    ```
+
+- **Reset Password Request**
+  - `POST /reset_password_request`
+  - Request Body:
+    ```json
+    {
+      "email": "string"
+    }
+    ```
+  - Response:
+    ```json
+    {
+      "message": "Password reset email sent"
+    }
+    ```
+
+- **Reset Password**
+  - `POST /reset_password/<token>`
+  - Request Body:
+    ```json
+    {
+      "password": "string"
+    }
+    ```
+  - Response:
+    ```json
+    {
+      "message": "Password has been reset"
+    }
+    ```
+
+### Expense Management
+
+- **Add Expense**
+  - `POST /expenses`
+  - Request Body:
+    ```json
+    {
+      "amount": float,
+      "category_id": int,
+      "date": "YYYY-MM-DD",
+      "payment_method": "string",
+      "description": "string (optional)",
+      "recurrence_type": "string (optional)",
+      "recurrence_interval": int (optional)
+    }
+    ```
+  - Response:
+    ```json
+    {
+      "message": "Expense added successfully"
+    }
+    ```
+
+- **Get All Expenses**
+  - `GET /expenses`
+  - Response:
+    ```json
+    [
+      {
+        "id": int,
+        "amount": float,
+        "category": "string",
+        "description": "string",
+        "date": "YYYY-MM-DD",
+        "payment_method": "string"
+      }
+    ]
+    ```
+
+- **Filter Expenses**
+  - `GET /expenses/filter`
+  - Query Parameters: `category_name`, `start_date`, `end_date`
+  - Response: Similar to "Get All Expenses"
+
+- **Get Expense Summary**
+  - `GET /expenses/summary`
+  - Response:
+    ```json
+    {
+      "total_expenses": float,
+      "monthly_breakdown": [
+        {
+          "month": "YYYY-MM",
+          "total_amount": float
+        }
+      ],
+      "top_categories": [
+        {
+          "category": "string",
+          "total_amount": float
+        }
+      ]
+    }
+    ```
+
+- **Update Expense**
+  - `PUT /expenses/<int:expense_id>`
+  - Request Body: Similar to "Add Expense" (optional fields)
+  - Response:
+    ```json
+    {
+      "message": "Expense updated successfully."
+    }
+    ```
+
+- **Delete Expense**
+  - `DELETE /expenses/<int:expense_id>`
+  - Response:
+    ```json
+    {
+      "message": "Expense deleted successfully."
+    }
+    ```
+
+### Category Management
+
+- **Add Category**
+  - `POST /categories`
+  - Request Body:
+    ```json
+    {
+      "name": "string"
+    }
+    ```
+  - Response:
+    ```json
+    {
+      "message": "Category created successfully",
+      "category_id": int
+    }
+    ```

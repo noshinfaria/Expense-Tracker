@@ -46,7 +46,7 @@ A finance tracking application built with Flask, providing user authentication, 
 ## Technologies
 
 - **Backend:** Flask
-- **Database:** SQLite (or PostgreSQL for bonus points)
+- **Database:** SQLite
 - **Authentication:** JWT (JSON Web Tokens)
 - **Email:** Flask-Mail (for password reset functionality)
 - **CSV Export:** Built-in CSV module

@@ -39,6 +39,11 @@ A finance tracking application built with Flask, providing user authentication, 
 - **Profile Management**
   - Update user profile information and change passwords.
 
+- **Chatbot Integration**
+  - A chatbot feature that allows users to query financial data.
+  - Users can submit requests in natural language, which are converted into SQL queries.
+  - Supports retrieving user-specific data and executing relevant database actions.
+
 ## Technologies
 
 - **Backend:** Flask
@@ -46,6 +51,7 @@ A finance tracking application built with Flask, providing user authentication, 
 - **Authentication:** JWT (JSON Web Tokens)
 - **Email:** Flask-Mail (for password reset functionality)
 - **CSV Export:** Built-in CSV module
+- **Chatbot:** Integrated using Langchain for natural language processing
 
 ## API Endpoints
 
@@ -226,3 +232,22 @@ A finance tracking application built with Flask, providing user authentication, 
       "category_id": int
     }
     ```
+
+### Chatbot API
+
+- **Chat with the Bot**
+  - `POST /chat`
+  - **Request Body:**
+    ```json
+    {
+      "message": "string"
+    }
+    ```
+  - **Response:**
+    ```json
+    {
+      "response": "string"
+    }
+    ```
+  - **Description:** This endpoint allows users to send a natural language query to the chatbot, which will convert the request into an SQL query and return the result.
+

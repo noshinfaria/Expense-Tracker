@@ -1,90 +1,25 @@
-import csv
-import os
 from datetime import datetime, timedelta
 
-import jwt  # Install PyJWT if not already installed: pip install PyJWT
+import jwt
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, Response, current_app, jsonify, request, url_for
-from flask_admin import Admin
-from flask_admin.contrib.sqla import ModelView
-from flask_bcrypt import Bcrypt
+from flask import Blueprint, Response, current_app, jsonify, request, url_for
 from flask_jwt_extended import (
-    JWTManager,
     create_access_token,
     create_refresh_token,
     get_jwt_identity,
     jwt_required,
 )
-from flask_mail import Mail, Message
-from flask_migrate import Migrate
-from flask_sqlalchemy import SQLAlchemy
+from flask_mail import Message
 from sqlalchemy import Enum, func
 from werkzeug.security import check_password_hash, generate_password_hash
 
-app = Flask(__name__)
+from . import bcrypt, db, mail
+from .models import Budget, Category, Expense, RecurrenceType, User
 
-# PostgreSQL Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://username:password@localhost:5432/yourdatabase'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-app.config['JWT_SECRET_KEY'] = 'supersecretkey'
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = datetime.timedelta(days=1)  # Access token expires in 1 day
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = datetime.timedelta(days=7)  # Refresh token expires in 7 days
-
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
-bcrypt = Bcrypt(app)
-jwt = JWTManager(app)
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-
-class Category(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    user = db.relationship('User', backref=db.backref('categories', lazy=True))
-
-class RecurrenceType(Enum):
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
-    YEARLY = "yearly"
-
-class Expense(db.Model):
-    __tablename__ = 'expenses'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    amount = db.Column(db.Float, nullable=False)
-    category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
-    description = db.Column(db.String(200))
-    date = db.Column(db.Date, nullable=False)
-    payment_method = db.Column(db.String(20), nullable=False)
-
-    category = db.relationship('Category', backref=db.backref('expenses', lazy=True))
-
-    # Recurrence fields
-    recurrence_type = db.Column(Enum(RecurrenceType), nullable=True)
-    recurrence_interval = db.Column(db.Integer, default=1)  # e.g., every 2 weeks
-    next_occurrence_date = db.Column(db.Date, nullable=True)
+main = Blueprint('main', __name__)
 
 
-class Budget(db.Model):
-    __tablename__ = 'budgets'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    amount = db.Column(db.Float, nullable=False)
-    month = db.Column(db.Date, nullable=False, unique=True)  # Ensure one budget per month
-
-
-
-@app.route('/register', methods=['POST'])
+@main.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
     hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
@@ -93,7 +28,7 @@ def register():
     db.session.commit()
     return jsonify({'message': 'User registered successfully'}), 201
 
-@app.route('/login', methods=['POST'])
+@main.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     user = User.query.filter_by(email=data['email']).first()
@@ -103,14 +38,14 @@ def login():
         return jsonify({'access_token': access_token, 'refresh_token': refresh_token})
     return jsonify({'message': 'Invalid credentials'}), 401
 
-@app.route('/refresh', methods=['POST'])
+@main.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
 def refresh():
     identity = get_jwt_identity()
     new_access_token = create_access_token(identity=identity)
     return jsonify({'access_token': new_access_token}), 200
 
-@app.route('/reset_password_request', methods=['POST'])
+@main.route('/reset_password_request', methods=['POST'])
 def reset_password_request():
     data = request.get_json()
     user = User.query.filter_by(email=data['email']).first()
@@ -128,7 +63,7 @@ def reset_password_request():
     return jsonify({'message': 'Email not found'}), 404
 
 
-@app.route('/reset_password/<token>', methods=['POST'])
+@main.route('/reset_password/<token>', methods=['POST'])
 def reset_password(token):
     try:
         data = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
@@ -149,7 +84,7 @@ def reset_password(token):
 
 
 
-@app.route('/expenses', methods=['POST'])
+@main.route('/expenses', methods=['POST'])
 @jwt_required()
 def add_expense():
     data = request.get_json()
@@ -208,7 +143,7 @@ def add_expense():
 
 
 
-@app.route('/expenses', methods=['GET'])
+@main.route('/expenses', methods=['GET'])
 @jwt_required()
 def get_expenses():
     user_id = get_jwt_identity()
@@ -229,7 +164,7 @@ def get_expenses():
     return jsonify(expenses_list)
 
 
-@app.route('/expenses/filter', methods=['GET'])
+@main.route('/expenses/filter', methods=['GET'])
 @jwt_required()
 def filter_expenses():
     user_id = get_jwt_identity()
@@ -274,7 +209,7 @@ def filter_expenses():
     return jsonify(expenses_list), 200
 
 
-@app.route('/expenses/summary', methods=['GET'])
+@main.route('/expenses/summary', methods=['GET'])
 @jwt_required()
 def get_expense_summary():
     user_id = get_jwt_identity()
@@ -334,7 +269,7 @@ def get_expense_summary():
     return jsonify(summary_response), 200
 
 
-@app.route('/expenses/<int:expense_id>', methods=['PUT'])
+@main.route('/expenses/<int:expense_id>', methods=['PUT'])
 @jwt_required()
 def update_expense(expense_id):
     user_id = get_jwt_identity()
@@ -379,7 +314,7 @@ def update_expense(expense_id):
 
 
 
-@app.route('/expenses/<int:expense_id>', methods=['DELETE'])
+@main.route('/expenses/<int:expense_id>', methods=['DELETE'])
 @jwt_required()
 def delete_expense(expense_id):
     user_id = get_jwt_identity()
@@ -436,7 +371,7 @@ scheduler.start()
 
 
 
-@app.route('/categories', methods=['POST'])
+@main.route('/categories', methods=['POST'])
 @jwt_required()
 def add_category():
     data = request.get_json()
@@ -452,7 +387,7 @@ def add_category():
     return jsonify({'message': 'Category created successfully', 'category_id': new_category.id}), 201
 
 
-@app.route('/categories', methods=['GET'])
+@main.route('/categories', methods=['GET'])
 @jwt_required()
 def get_categories():
     user_id = get_jwt_identity()
@@ -461,7 +396,7 @@ def get_categories():
     return jsonify([{'id': cat.id, 'name': cat.name} for cat in categories])
 
 
-@app.route('/categories/<int:category_id>', methods=['PUT'])
+@main.route('/categories/<int:category_id>', methods=['PUT'])
 @jwt_required()
 def update_category(category_id):
     data = request.get_json()
@@ -479,7 +414,7 @@ def update_category(category_id):
     return jsonify({'message': 'Invalid data'}), 400
 
 
-@app.route('/categories/<int:category_id>', methods=['DELETE'])
+@main.route('/categories/<int:category_id>', methods=['DELETE'])
 @jwt_required()
 def delete_category(category_id):
     user_id = get_jwt_identity()
@@ -498,7 +433,7 @@ def delete_category(category_id):
     return jsonify({'message': 'Category deleted successfully'})
 
 
-@app.route('/budgets', methods=['POST'])
+@main.route('/budgets', methods=['POST'])
 @jwt_required()
 def set_budget():
     user_id = get_jwt_identity()
@@ -533,7 +468,7 @@ def notify_budget_exceeded(user_email):
     msg.body = body
 
     try:
-        with app.app_context():
+        with main.app_context():
             mail.send(msg)
         print(f"Notification email sent to {user_email}")
     except Exception as e:
@@ -542,7 +477,7 @@ def notify_budget_exceeded(user_email):
 
 
 
-@app.route('/budgets/usage', methods=['GET'])
+@main.route('/budgets/usage', methods=['GET'])
 @jwt_required()
 def track_budget_usage():
     user_id = get_jwt_identity()
@@ -578,7 +513,7 @@ def track_budget_usage():
 
 
 
-@app.route('/export', methods=['GET'])
+@main.route('/export', methods=['GET'])
 @jwt_required()
 def export_expenses():
     user_id = get_jwt_identity()
@@ -593,7 +528,7 @@ def export_expenses():
     return Response(generate(), mimetype='text/csv', headers={"Content-Disposition": "attachment;filename=expenses.csv"})
 
 
-@app.route('/update_profile', methods=['PUT'])
+@main.route('/update_profile', methods=['PUT'])
 @jwt_required()
 def update_profile():
     user_id = get_jwt_identity()
@@ -614,7 +549,7 @@ def update_profile():
 
 
 
-@app.route('/change_password', methods=['PUT'])
+@main.route('/change_password', methods=['PUT'])
 @jwt_required()
 def change_password():
     user_id = get_jwt_identity()
@@ -636,23 +571,3 @@ def change_password():
     db.session.commit()
 
     return jsonify({'message': 'Password changed successfully'}), 200
-
-
-
-# Flask-Admin setup
-admin = Admin(app, name='Expense Tracker Admin', template_mode='bootstrap3')
-admin.add_view(ModelView(User, db.session, endpoint='user_admin'))
-admin.add_view(ModelView(Expense, db.session, endpoint='expense_admin'))
-
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'  # Example for Gmail
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'noshin@co.design'  # Your email
-app.config['MAIL_PASSWORD'] = 'zrwyengrbaqhtuth'  # Your email password
-app.config['MAIL_DEFAULT_SENDER'] = 'noshin@co.design'  # Default sender
-mail = Mail(app)
-
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-    app.run(debug=True)

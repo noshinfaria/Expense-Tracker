@@ -1,5 +1,6 @@
 from datetime import timedelta
-
+from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session, sessionmaker
 
 class Config:
     # SQLALCHEMY_DATABASE_URI = 'postgresql://username:password@localhost:5432/yourdatabase'
@@ -14,3 +15,4 @@ class Config:
     MAIL_USERNAME = 'noshin@co.design'
     MAIL_PASSWORD = 'zrwyengrbaqhtuth'
     MAIL_DEFAULT_SENDER = 'noshin@co.design'  # Default sender
+

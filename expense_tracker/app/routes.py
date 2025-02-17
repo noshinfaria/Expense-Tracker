@@ -14,13 +14,13 @@ from sqlalchemy import Enum, func, create_engine
 
 
 from werkzeug.security import check_password_hash, generate_password_hash
-from langchain.llms import LlamaCpp
+
 
 from . import bcrypt, db, mail
 from .models import Budget, Category, Expense, RecurrenceType, User
 from .config import Config  
 
-llm = LlamaCpp(model_path="./models/llama-2-7b.Q4_K_M.gguf", n_ctx=512, temperature=0.7)
+# llm = LlamaCpp(model_path="./models/llama-2-7b.Q4_K_M.gguf", n_ctx=512, temperature=0.7)
 
 main = Blueprint('main', __name__)
 
@@ -588,43 +588,43 @@ def change_password():
 # Chatbot
 
 # Function to process user queries
-def process_query(user_message, user_id):
-    # Generate SQL query using Llama
-    response = llm(f"Convert this finance request into an SQL query: {user_message}")
+# def process_query(user_message, user_id):
+#     # Generate SQL query using Llama
+#     response = llm(f"Convert this finance request into an SQL query: {user_message}")
 
-    # Extract SQL query
-    sql_match = re.search(r"SELECT .*?;|UPDATE .*?;|INSERT INTO .*?;", response, re.DOTALL)
+#     # Extract SQL query
+#     sql_match = re.search(r"SELECT .*?;|UPDATE .*?;|INSERT INTO .*?;", response, re.DOTALL)
     
-    if sql_match:
-        sql_query = sql_match.group(0)
-        sql_query = sql_query.replace("user_id = ?", f"user_id = {user_id}")  # Ensure user-specific filtering
-        return run_sql_query(sql_query)
-    else:
-        return "Sorry, I couldn't process that request."
+#     if sql_match:
+#         sql_query = sql_match.group(0)
+#         sql_query = sql_query.replace("user_id = ?", f"user_id = {user_id}")  # Ensure user-specific filtering
+#         return run_sql_query(sql_query)
+#     else:
+#         return "Sorry, I couldn't process that request."
 
-# Function to execute SQL queries
-def run_sql_query(query):
-    try:
-        with engine.connect() as connection:
-            result = connection.execute(text(query))
-            if query.strip().lower().startswith("select"):
-                data = result.fetchall()
-                return [dict(row) for row in data]  # Convert result to JSON format
-            return "Action completed successfully."
-    except Exception as e:
-        return f"Error executing query: {str(e)}"
+# # Function to execute SQL queries
+# def run_sql_query(query):
+#     try:
+#         with engine.connect() as connection:
+#             result = connection.execute(text(query))
+#             if query.strip().lower().startswith("select"):
+#                 data = result.fetchall()
+#                 return [dict(row) for row in data]  # Convert result to JSON format
+#             return "Action completed successfully."
+#     except Exception as e:
+#         return f"Error executing query: {str(e)}"
 
-# API Route for Chatbot
-@app.route('/chat', methods=['POST'])
-@jwt_required()
-def chat():
-    data = request.json
-    user_message = data.get("message")
-    user_id = get_jwt_identity()
+# # API Route for Chatbot
+# @app.route('/chat', methods=['POST'])
+# @jwt_required()
+# def chat():
+#     data = request.json
+#     user_message = data.get("message")
+#     user_id = get_jwt_identity()
 
-    if not user_message:
-        return jsonify({"error": "Message is required"}), 400
+#     if not user_message:
+#         return jsonify({"error": "Message is required"}), 400
 
-    response = process_query(user_message, user_id)
+#     response = process_query(user_message, user_id)
     
-    return jsonify({"response": response})
+#     return jsonify({"response": response})
